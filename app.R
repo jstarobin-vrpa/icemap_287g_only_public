@@ -30,7 +30,7 @@ ui <- navbarPage(
              "div.info.legend.leaflet-control br {clear: both;}",
              "#leafletMap {height: calc(87vh) !important;}"),
   # law enforcement activity map with coalition resource overlays
-  tabPanel("Map Tool Dashboard",
+  tabPanel("Dashboard",
            # map sidebar
            sidebarLayout(
              sidebarPanel(
@@ -488,7 +488,7 @@ server <- function(input, output) {
           <br>
           
           <br><p class = title><b>CONTENT</b></p>
-          The app contains three widgets on the Map Tool Dashboard.
+          The app contains three widgets on the Dashboard.
           <p></p>
           <b>1. Map</b>
           <br>The map visualization shows one dot for each 287(g) agreement in Pennsylvania, color coded by partner agency type.
