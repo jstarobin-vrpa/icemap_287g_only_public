@@ -480,25 +480,24 @@ server <- function(input, output) {
            </style>
            
           <p class = title><b>CONCEPT</b></p>
-          This app visualizes ICE 287(g) agreements with local law enforcement agencies across Pennsylvania, overlaid on background population demographics.
+          This app visualizes ICE 287(g) agreements with local law enforcement across Pennsylvania, overlaid on background population demographics.
           <br>
           
           <br><p class = title><b>CONTENT</b></p>
           The app contains three widgets on the Map Tool Dashboard.
           <p></p>
           <b>1. Map</b>
-          <br>The map visualization shows one dot for each 287(g) agreement in Pennsylvania.
+          <br>The map visualization shows one dot for each 287(g) agreement in Pennsylvania, color coded by partner agency type.
           <p></p>
           <p style = 'margin-left: 15px;'>
-            <b> — <i>Partner Type</i></b> selects the kind of agencies partnered with ICE through 287(g) agreements.
-            <br><b> — <i>Partnership Model Type</i></b> selects the kind of 287(g) partnership models.
-            <br><b> — <i>287(g) Dates Signed</i></b> subsets all 287(g) agreements by the date each participating local law
-            enforcement agency signed its agreement with ICE. Available 287(g) agreements span dates from ____ to ____.
-            <br><b> — <i>Background Demographic</i></b> selects the demographic to display for the selected background geography. 
-            Options include a geography's total population, total non-white population, and total Hispanic or Latino population.
+            <b> — <i>Partner Type</i></b> selects the kinds of law enforcement agency partnered with ICE to display.
+            <br><b> — <i>Partnership Model Type</i></b> selects the kinds of 287(g) partnership model to display.
+            <br><b> — <i>287(g) Dates Signed</i></b> subsets all 287(g) agreements by the date each partner agency signed its agreement with ICE. 
+            Available 287(g) agreements span dates from ", min(data_ice_point$signed, na.rm = TRUE), " to ", max(data_ice_point$signed, na.rm = TRUE), ".
+            <br><b> — <i>Background Demographic</i></b> selects the demographic to display at the given geography level (e.g., county or municipality).
+            Demographics are pulled from the US Census Bureau and are available only at the county level for this app. Available demographics include 
+            a geography's total population, total non-white population, and total Hispanic or Latino population.
             <br><b> — <i>Geography</i></b> selects which background geography to map. Options include Pennsylvania counties and municipalities.
-            
-            NOTE ON HAND GEOCODING FROM GOOGLE MAPS
           <br>
           </p>
           <b>2. 287(g) Selection Table</b>
@@ -511,12 +510,46 @@ server <- function(input, output) {
           <b>3. Background Demographics Table</b>
           <p style = 'margin-left: 15px;'>
             This widget produces a table with the available background demographics for all geographies of the type currently selected.
-          <br>
           </p>
           
+          <br><p class = title><b>METHODOLOGY</b></p>
+          This app involves two significant manipulations of source data: geocoding 287(g) agreements and computing certain background demographics.
+          
+          <p></p>
+            <p style = 'margin-left: 15px;'>
+            <b>Geocoding</b>
+            <br>To geocode ICE records of 287(g) agreements with local law enforcement, ICE records were matched with Pennsylvania Department of Transportation 
+            records of municipality and county boundaries. Where the jurisdiction of an ICE record matched a PA DOT municipality record exactly, the
+            associated 287(g) agreement was geocoded at that municipality's centroid. Where ICE records named county-wide or intra-county regional jurisdictions, 
+            287(g) agreements were geocoded at the county's centroid or, in cases where the ICE record referenced a cardinal direction in the name of the
+            agency (e.g., northwest, eastern, etc.), at a point slightly offset from the centroid. ICE records which did not match any PA DOT records
+            were handcoded using coordinates from Google Maps. In total, ", (stats_handcoded$total - stats_handcoded$count), " ICE records (", 
+            scales::label_percent()(1 - stats_handcoded$prop), ") were handcoded algorithmically and the remaining ", stats_handcoded$count, " records (", 
+            scales::label_percent()(stats_handcoded$prop), ") were handcoded.
+            </p>
+            
+          <p></p>
+            <p style = 'margin-left: 15px;'>
+            <b>Demographic Computation</b>
+            <br>County-level background demographics for total population and total Hispanic or Latino population were pulled directly from the US Census 
+            Bureau's American Community Survey 5-Year Data. County-level background demographics for total non-white population were estimated by subtracting
+            the 5-year ACS estimates of 'White Alone, Not Hispanic or Latino' populations from total population estimates for each county.
+            </p>
+          
           <br><p class = title><b>ATTRIBUTION</b></p>
-          This product uses the Census Bureau Data API but is not endorsed or certified by the Census Bureau.
-          PADOT DISCLAIMER
+          Data on 287(g) agreements in Pennsylvania are provided by U.S. Immigrations and Customs Enforcement. For the source file, see the link below:
+          <br>
+          <a href=https://www.ice.gov/identify-and-arrest/287g>ICE 287(g) Participating Agencies</a>
+          <p></p>
+          This product uses the Census Bureau Data API but is not endorsed or certified by the Census Bureau. In particular, the app uses
+          Census Bureau data for county-level demographics and geometry.
+          <p></p>
+          Data on Pennsylvania municipal boundaries are provided by the Pennsylvania Department of Transportation and
+          accessed through the Commonwealth of Pennsylvania Open Data Portal API. For the source files, see the links below:
+          <br>
+          <a href=https://data.pa.gov/Geospatial-Data/PA-Municipality-Boundaries/ednf-5bi6/about_data>PA Municipality Boundaries</a>
+          <br>
+          <a href=https://data.pa.gov/Geospatial-Data/PA-Municipality-Boundaries/ednf-5bi6/about_data>PA Municipality Boundaries</a> #### UPDATE COUNTIES
           <br>
           
           <br><p class = title><b>AUTHOR</b></p>
