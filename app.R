@@ -336,18 +336,22 @@ server <- function(input, output) {
                   popupOptions = popupOptions(autoClose = FALSE,
                                               closeOnClick = FALSE),
                   group = "geoshapes",
-                  options = pathOptions(pane = "polygons")) # %>%
-    # { if(input$geography != "None") 
-    #    addLegend(map = .,
-    #             data = data_polygons_filtered(),
-    #              position = "bottomright",
-    #             title = "Contest Type",
-    #              pal = colorFactor(palette = unique(data_polygons_filtered()$contest_color),
-    #                               domain = data_polygons_filtered()$contest),
-    #              values = ~ contest,
-    #              layerId = "geolegend") }
+                  options = pathOptions(pane = "polygons")) %>%
+      { if (input$geography != "None" & input$demographic != "None") 
+        addLegend(map = .,
+                  data = data_polygons_filtered(),
+                  position = "bottomright",
+                  title = input$demographic,
+                  pal = pal,
+                  values = ~ data_polygons_filtered()[[2]],
+                  na.label = "No Data",
+                  bins = 5,
+                  layerId = "geolegend")
+        else
+          . }
   }) %>%
-    bindEvent(data_polygons_filtered(), input$popup_clear)
+    bindEvent(data_polygons_filtered(),
+              input$popup_clear)
   
   # clear popups on click
   observe({
@@ -519,12 +523,12 @@ server <- function(input, output) {
             <p style = 'margin-left: 15px;'>
             <b>Geocoding</b>
             <br>To geocode ICE records of 287(g) agreements with local law enforcement, ICE records were matched with Pennsylvania Department of Transportation 
-            records of municipality and county boundaries. Where the jurisdiction of an ICE record matched a PA DOT municipality record exactly, the
-            associated 287(g) agreement was geocoded at that municipality's centroid. Where ICE records named county-wide or intra-county regional jurisdictions, 
-            287(g) agreements were geocoded at the county's centroid or, in cases where the ICE record referenced a cardinal direction in the name of the
-            agency (e.g., northwest, eastern, etc.), at a point slightly offset from the centroid. ICE records which did not match any PA DOT records
-            were handcoded using coordinates from Google Maps. In total, ", (stats_handcoded$total - stats_handcoded$count), " ICE records (", 
-            scales::label_percent()(1 - stats_handcoded$prop), ") were handcoded algorithmically and the remaining ", stats_handcoded$count, " records (", 
+            records of municipality boundaries and US Census Bureau county boundaries. Where the jurisdiction of an ICE record matched a PA DOT municipality record 
+            exactly, the associated 287(g) agreement was geocoded at that municipality's centroid. Where an ICE record named county-wide or intra-county regional 
+            jurisdiction, the record's 287(g) agreements was geocoded at the county's centroid or, in cases where the ICE record referenced a compass direction (e.g.,
+            'northwest,' 'eastern,' etc.), at a point slightly offset from the centroid in the specificed direction. ICE records which did not match any PA DOT records 
+            but which specified jurisdictions at the municipal level were handcoded using coordinates from Google Maps. In total, ", (stats_handcoded$total - stats_handcoded$count),
+            " ICE records (", scales::label_percent()(1 - stats_handcoded$prop), ") were handcoded algorithmically and the remaining ", stats_handcoded$count, " records (",
             scales::label_percent()(stats_handcoded$prop), ") were handcoded.
             </p>
             
@@ -540,16 +544,18 @@ server <- function(input, output) {
           Data on 287(g) agreements in Pennsylvania are provided by U.S. Immigrations and Customs Enforcement. For the source file, see the link below:
           <br>
           <a href=https://www.ice.gov/identify-and-arrest/287g>ICE 287(g) Participating Agencies</a>
+          <br>
           <p></p>
           This product uses the Census Bureau Data API but is not endorsed or certified by the Census Bureau. In particular, the app uses
           Census Bureau data for county-level demographics and geometry.
+          <br>
           <p></p>
-          Data on Pennsylvania municipal boundaries are provided by the Pennsylvania Department of Transportation and
-          accessed through the Commonwealth of Pennsylvania Open Data Portal API. For the source files, see the links below:
+          Data on Pennsylvania municipal boundaries and county FIPS codes, used to identify each municipality's encompassing county or counties, are provided by the 
+          Pennsylvania Department of Transportation and accessed through the Commonwealth of Pennsylvania Open Data Portal API. For the source files, see the links below:
           <br>
           <a href=https://data.pa.gov/Geospatial-Data/PA-Municipality-Boundaries/ednf-5bi6/about_data>PA Municipality Boundaries</a>
           <br>
-          <a href=https://data.pa.gov/Geospatial-Data/PA-Municipality-Boundaries/ednf-5bi6/about_data>PA Municipality Boundaries</a> #### UPDATE COUNTIES
+          <a href=https://data.pa.gov/Census-Economic/Federal-Information-Processing-Standard-FIPS-Codes/44ch-j9ei/about_data>PA County FIPS codes</a>
           <br>
           
           <br><p class = title><b>AUTHOR</b></p>
