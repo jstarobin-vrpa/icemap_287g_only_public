@@ -16,14 +16,12 @@ library(tidyverse)
 
 # import data
 
-load("ice_data.RData")
+load("ice_data_287g_only_public.RData")
 
 # define UI     
 
 ui <- navbarPage(
-  title = paste0("ICE in Pennsylvania, 2026 - Updated ", 
-                 format(datecheck, "%m/%d/%Y"),
-                 " - FOR INTERNAL USE ONLY - DO NOT SHARE"),
+  title = paste0("287(g) Agreements in Pennsylvania - Updated ", format(datecheck, "%m/%d/%Y")),
   # set theme
   theme = shinytheme("cosmo"),
   # set HTML tags style
@@ -32,7 +30,7 @@ ui <- navbarPage(
              "div.info.legend.leaflet-control br {clear: both;}",
              "#leafletMap {height: calc(87vh) !important;}"),
   # law enforcement activity map with coalition resource overlays
-  tabPanel("Election Threats Dashboard",
+  tabPanel("Map Tool Dashboard",
            # map sidebar
            sidebarLayout(
              sidebarPanel(
@@ -41,19 +39,23 @@ ui <- navbarPage(
                                           style = "primary",
                                           pickerInput(
                                             inputId = "ice",
-                                            label = "Law Enforcement Activity",
-                                            choices = c("ICE Field Offices",
-                                                        "ICE Detention Facilities",
-                                                        "287(g) Agreements",
-                                                        "FBI Offices"),
-                                            selected = c("ICE Field Offices",
-                                                         "ICE Detention Facilities",
-                                                         "287(g) Agreements",
-                                                         "FBI Offices"),
+                                            label = "Partner Type",
+                                            choices = unique(data_ice_point$lea_type),
+                                            selected = unique(data_ice_point$lea_type),
                                             multiple = TRUE,
                                             options = pickerOptions(actionsBox = TRUE,
                                                                     selectAllText = NULL,
-                                                                    selectedTextFormat = "count > 2")
+                                                                    selectedTextFormat = "count > 1")
+                                          ),
+                                          pickerInput(
+                                            inputId = "model",
+                                            label = "Partnership Model Type",
+                                            choices = unique(data_ice_point$type),
+                                            selected = unique(data_ice_point$type),
+                                            multiple = TRUE,
+                                            options = pickerOptions(actionsBox = TRUE,
+                                                                    selectAllText = NULL,
+                                                                    selectedTextFormat = "count > 1")
                                           ),
                                           div(style = "margin: auto; width: 90%;",
                                               sliderInput(
@@ -65,54 +67,23 @@ ui <- navbarPage(
                                                           max(data_ice_point$signed, na.rm = TRUE)),
                                                 ticks = FALSE,
                                                 timeFormat = "%D"
-                                              ),
-                                              ifelse("max_daily_population_last_year" %in% colnames(data_ice_point),
-                                                     sliderInput(
-                                                       inputId = "capacity_detention",
-                                                       label = "Detention Facility Max Recorded Capacity, Past 365 Days",
-                                                       min = 0,
-                                                       max = max(data_ice_point$max_daily_population_last_year, na.rm = TRUE),
-                                                       value = max(data_ice_point$max_daily_population_last_year, na.rm = TRUE),
-                                                       ticks = FALSE
-                                                     ),
-                                                     "")
+                                              )
                                           ),
                                           pickerInput(
                                             inputId = "demographic",
                                             label = "Background Demographic",
-                                            choices = c(# "Total ICE (??) Arrests",       ##### EDIT
-                                              "Electoral Races",
-                                              "Total Population",
-                                              "Total Population Non-White",
-                                              "Total Population Hispanic or Latino",
-                                              #            "Proportion Non-White (%)",
-                                              #            "Proportion Hispanic or Latino (%)",
-                                              "None"),
+                                            choices = c("Total Population",
+                                                        "Total Population Non-White",
+                                                        "Total Population Hispanic or Latino",
+                                                        "None"),
                                             selected = "Total Population",
                                             multiple = FALSE
                                           ),
-                                          #pickerInput(
-                                          #  inputId = "elections",
-                                          #  label = "Ballot Return Outlets",
-                                          #  choices = c("County Election Offices",
-                                          #              "Satellite Election Offices",
-                                          #              "Drop Boxes"),
-                                          #  selected = c("County Election Offices",
-                                          #               "Satellite Election Offices",
-                                          #               "Drop Boxes"),
-                                          #  multiple = TRUE,
-                                          #  options = pickerOptions(actionsBox = TRUE,
-                                          #                          selectAllText = NULL,
-                                          #                          selectedTextFormat = "count > 2")
-                                          #),
                                           pickerInput(
                                             inputId = "geography",
                                             label = "Geography",
                                             choices = c("Counties",
                                                         "Municipalities",
-                                                        "US House Districts",
-                                                        "PA Senate Districts",
-                                                        "PA House Districts", 
                                                         "None"),
                                             selected = "Counties",
                                             multiple = FALSE
@@ -123,11 +94,11 @@ ui <- navbarPage(
                                             width = "100%"
                                           )
                           ),
-                          bsCollapsePanel(title = "Summary Readout",
+                          bsCollapsePanel(title = "Total Displayed 287(g) Agreements",
                                           style = "info",
                                           htmlOutput("summary")),
                           multiple = TRUE,
-                          open = c("Map Controls", "Summary Readout")
+                          open = c("Map Controls", "Total Displayed 287(g) Agreements")
                ),
                width = 3
              ),
@@ -137,7 +108,7 @@ ui <- navbarPage(
                           leafletOutput(outputId = "leafletMap",
                                         width = "98.5%"),
                  ),
-                 tabPanel("Law Enforcement Activity Table",
+                 tabPanel("287(g) Selection Table",
                           br(),
                           downloadBttn(outputId = "csv_ice_point",
                                        label = "Export as .CSV",
@@ -171,8 +142,6 @@ ui <- navbarPage(
              fluid = TRUE
            )
   ),
-  # mail ballot aggregator
-  tabPanel("Mail Ballot Aggregator"),           ######### EDIT
   # about page
   tabPanel("About",
            htmlOutput("about")
@@ -181,76 +150,31 @@ ui <- navbarPage(
 
 server <- function(input, output) {
   
-  # user selects forms of ICE activity
+  # user selects types of ICE partner agencies
   data_ice_point_filtered <- reactive({
-    data_ice_point %>%                      ##### REVISIT AFTER NEW ICE DATA
-      filter(icetype %in% input$ice) %>%
-      { if(any("287(g) Agreements" %in% .$icetype)) 
-        filter(., (.$signed >= input$time_287g[1] & .$signed <= input$time_287g[2]) | 
-                 is.na(.$signed)) 
-        else
-          . } %>%
-      { if(any("ICE Detention Facilities" %in% .$icetype) & "capacity_detention" %in% names(input)) 
-        filter(., .$max_daily_population_last_year <= input$capacity_detention | 
-                 is.na(.$max_daily_population_last_year)) 
-        else
-          . } %>%
-      mutate(icetype_color = case_when(icetype == "ICE Field Offices" ~ "#eb301e",
-                                       icetype == "ICE Detention Facilities" ~ "#9c4deb",
-                                       icetype == "287(g) Agreements" ~ "orange",
-                                       icetype == "FBI Offices" ~ "#95b9ed",
-                                       .default = "black")) %>%
-      arrange(icetype) %>%
+    data_ice_point %>%                      
+      filter(lea_type %in% input$ice) %>%
+      filter(type %in% input$model) %>%
+      filter(., (.$signed >= input$time_287g[1] & .$signed <= input$time_287g[2]) | 
+                 is.na(.$signed)) %>%
+      mutate(lea_color = case_when(lea_type == "Police" ~ "#ffdc3b",
+                                   lea_type == "Sheriff" ~ "orange",
+                                   lea_type == "Constable" ~ "#eb301e",
+                                   lea_type == "District Attorney" ~ "maroon",
+                                   lea_type == "Jail or Prison" ~ "#9c4deb",
+                                   .default = "gray")) %>%
+      arrange(lea_type) %>%
       return()
   }) %>%
     bindEvent(input$ice, 
+              input$model,
               input$time_287g,
-              input$capacity_detention,
               ignoreNULL = FALSE)
   
   # create HTML tags for ICE labels and popups
   tags_ice <- reactive({
-    # ICE field office tags
-    case_when(data_ice_point_filtered()$icetype == "ICE Field Offices" ~                 
-                paste0(ifelse(is.na(data_ice_point_filtered()$supervising_office),
-                              paste0("<b>ICE Field Office:</b> ", data_ice_point_filtered()$name),
-                              paste0("<b>ICE Field Office:</b> ", data_ice_point_filtered()$name, " ", data_ice_point_filtered()$type,
-                                     "<br>
-                                     <b>Supervising Office:</b> ", data_ice_point_filtered()$supervising_office)),
-                       "<br>
-                       <b>Agency:</b> ", data_ice_point_filtered()$agency),
-              # ICE detention facility tags
-              data_ice_point_filtered()$icetype == "ICE Detention Facilities" ~ 
-                paste0("<b>Detention Facility:</b> ", data_ice_point_filtered()$name,
-                       "<br>
-                       <b>Facility Code:</b> ", data_ice_point_filtered()$detention_facility_code,
-                       "<br>
-                       <b>County:</b> ", data_ice_point_filtered()$county,
-                       "<br>
-                       <b>Detention Stats, Past 365 Days:</b>
-                       <p style = 'margin-left: 3px;'>
-                       - Days with At Least One Detention: ", ifelse("days_with_detentions_daily_last_year" %in% colnames(data_ice_point_filtered()),
-                                                                     ifelse(is.na(data_ice_point_filtered()$days_with_detentions_daily_last_year),
-                                                                            "No Data",
-                                                                            data_ice_point_filtered()$days_with_detentions_daily_last_year),
-                                                                     "No Data"),
-                       "<br>
-                       - Average Daily Detention Population: ", ifelse("average_daily_population_last_year" %in% colnames(data_ice_point_filtered()),
-                                                                       case_when(round(data_ice_point_filtered()$average_daily_population_last_year) >= 1 ~
-                                                                                   format(round(data_ice_point_filtered()$average_daily_population_last_year), big.mark = ","),
-                                                                                 round(data_ice_point_filtered()$average_daily_population_last_year) < 1 ~
-                                                                                   " < 1",
-                                                                                 .default = "No Data"),
-                                                                       "No Data"),
-                       "<br>
-                       - Max Daily Detention Population: ", ifelse("max_daily_population_last_year" %in% colnames(data_ice_point_filtered()),
-                                                                   ifelse(is.na(data_ice_point_filtered()$max_daily_population_last_year),
-                                                                          "No Data",
-                                                                          format(data_ice_point_filtered()$max_daily_population_last_year, big.mark = ",")),
-                                                                   "No Data"),
-                       "</p>"),
-              # 287(g) agreement tags
-              data_ice_point_filtered()$icetype == "287(g) Agreements" ~ 
+    # 287(g) agreement tags
+    case_when(data_ice_point_filtered()$icetype == "287(g) Agreements" ~ 
                 paste0("<b>287(g) Agreement:</b> ", data_ice_point_filtered()$name,
                        "<br>
                        <b>County:</b> ", data_ice_point_filtered()$county,
@@ -268,17 +192,6 @@ server <- function(input, output) {
                                                      data_ice_point_filtered()$addendum == "link pending" ~ "Link Pending",
                                                      is.na(data_ice_point_filtered()$addendum) ~ "None Listed",
                                                      .default = data_ice_point_filtered()$addendum)),
-              # FBI office tags
-              data_ice_point_filtered()$icetype == "FBI Offices" ~ 
-                paste0("<b>FBI Office:</b> ", data_ice_point_filtered()$name,
-                       "<br>
-                       <b>Office Type:</b> ", data_ice_point_filtered()$type,
-                       ifelse(data_ice_point_filtered()$type == "Resident Agency",
-                              paste0("<br>
-                                     <b>Supervising Office:</b> ", data_ice_point_filtered()$supervising_office,
-                                     "<br>"),
-                              "<br>"),
-                       "<b>Coverage Area:</b> ", data_ice_point_filtered()$coverage_area),
               .default = "") %>%
       # ensure output always has length > 0 even if no ice data selected for display 
       { if(length(.) == 0) paste0("No Data") else . } %>%
@@ -303,15 +216,7 @@ server <- function(input, output) {
   
   # update geography color scheme with demographic selection
   census_pal <- reactive({
-    if(input$demographic == "Electoral Races") {
-      colorFactor(palette = c("salmon", "lightgray"),
-                  levels = sort(unique(data_polygons_filtered()[[2]])),
-                  na.color = "lightgray")
-    } else if(input$demographic == "ACLU-PA Priority/Risk") {
-      colorFactor(palette = c("purple", "orange", "beige"),
-                  levels = unique(data_polygons_filtered())[[2]],
-                  na.color = "lightgray")
-    } else if(grepl("Population|Proportion", input$demographic) &
+    if(grepl("Population|Proportion", input$demographic) &
               !all(is.na(data_polygons_filtered()[[2]]))) {
       colorNumeric(palette = "Blues",
                    domain = data_polygons_filtered()[[2]],
@@ -328,8 +233,7 @@ server <- function(input, output) {
   tags_geo <- reactive({
     paste0("<b>Geography:</b> ", data_polygons_filtered()$name,
            "<br>
-           <b>", case_when(input$demographic == "Electoral Races" ~ "Contest Type: ",
-                           input$demographic == "None" ~ "",
+           <b>", case_when(input$demographic == "None" ~ "",
                            .default = paste0(input$demographic, ": ")), "</b>",
            if(input$demographic == "None") { "" }
            else if(is.numeric(data_polygons_filtered()[[2]])) { ifelse(is.na(data_polygons_filtered()[[2]]),
@@ -379,7 +283,7 @@ server <- function(input, output) {
                        weight = 3,
                        opacity = 0.8,
                        fill = TRUE,             
-                       fillColor = data_ice_point_filtered()$icetype_color,
+                       fillColor = data_ice_point_filtered()$lea_color,
                        fillOpacity = 0.8,
                        label = tags_ice(),
                        labelOptions = labelOptions(direction = "left"),
@@ -393,10 +297,10 @@ server <- function(input, output) {
         addLegend(map = .,
                   data = data_ice_point_filtered(),
                   position = "bottomright",
-                  title = "Law Enforcement Type",
-                  pal = colorFactor(palette = unique(data_ice_point_filtered()$icetype_color),     #### FIX ORDER OF LEGEND OPTIONS
-                                    domain = data_ice_point_filtered()$icetype),
-                  values = ~ icetype,
+                  title = "Partner Type",
+                  pal = colorFactor(palette = unique(data_ice_point_filtered()$lea_color),     #### FIX ORDER OF LEGEND OPTIONS
+                                    domain = data_ice_point_filtered()$lea_type),
+                  values = ~ lea_type,
                   layerId = "icelegend") }
   }) %>%
     bindEvent(data_ice_point_filtered(), input$popup_clear)  ## debug first time clicking clear all popups, then integrate other data
@@ -461,31 +365,20 @@ server <- function(input, output) {
       mutate(Addendum = ifelse(!is.na(addendum_link),
                                paste0("<a href=", addendum_link, ">", str_to_title(addendum), "</a>"),
                                str_to_title(addendum))) %>%
-      select(-c("county_fips_code",
+      select(-c("icetype",
                 "moa",
                 "moa_link",
                 "addendum",
                 "addendum_link",
-                "icetype_color",
-                "signed_formatted")) %>%
-      rename(any_of(c("Type" = "icetype",
-                      "Model or Subtype" = "type",          ###### COMBINE AGENCY WITH UNIT PARTNER TYPE
+                "lea_color",
+                "signed_formatted",
+                "geometry")) %>%
+      rename(any_of(c("Partnership Model" = "type",          ###### COMBINE AGENCY WITH UNIT PARTNER TYPE
                       "County" = "county",
-                      "Unit Name" = "name",
-                      "Unit Partner Type" = "lea_type",
-                      "ICE Agency" = "agency",
-                      "Supervising Office" = "supervising_office",
-                      "Address" = "address",
-                      "City" = "city",
-                      "State" = "state",
-                      "ZIP" = "zip",
-                      "Detention Facility Code" = "detention_facility_code",
-                      "Days with Detentions, Past 365 Days" = "days_with_detentions_daily_last_year",
-                      "Average Daily Detention Population, Past 365 Days" = "average_daily_population_last_year",
-                      "Max Daily Detention Population, Past 365 Days" = "max_daily_population_last_year",
+                      "Partner Type" = "lea_type",
+                      "Partner Name" = "name",
                       "Date Signed" = "signed",
-                      "Coverage Type" = "coverage_geotype",
-                      "Coverage Area" = "coverage_area"))) %>%
+                      "Coverage Type" = "coverage_geotype"))) %>%
       st_drop_geometry()
   })
   
@@ -546,7 +439,7 @@ server <- function(input, output) {
               # read HTML instead of escaping to normal string
               escape = FALSE
     ) %>%
-      formatRound(columns = 3:5,
+      formatRound(columns = 2:4,
                   digits = 0,
                   mark = ",")
   })
@@ -565,13 +458,17 @@ server <- function(input, output) {
   
   # generate summary readout tab
   output$summary <- renderText({
-    paste0("<b>ICE Field Offices Displayed:</b> ", nrow(filter(data_ice_point_filtered(), icetype == "ICE Field Offices")),
+    paste0("<b>All:</b> ", nrow(data_ice_point_filtered()),
            "<br>
-            <b>ICE Detention Facilities Displayed:</b> ", nrow(filter(data_ice_point_filtered(), icetype == "ICE Detention Facilities")),
+            <b>Police Departments:</b> ", nrow(filter(data_ice_point_filtered(), lea_type == "Police")),
            "<br>
-            <b>287(g) Agreements Displayed:</b> ", nrow(filter(data_ice_point_filtered(), icetype == "287(g) Agreements")),
+            <b>Sheriff's Offices:</b> ", nrow(filter(data_ice_point_filtered(), lea_type == "Sheriff")),
            "<br>
-            <b>FBI Offices Displayed:</b> ", nrow(filter(data_ice_point_filtered(), icetype == "FBI Offices")))
+            <b>Constable's Offices:</b> ", nrow(filter(data_ice_point_filtered(), lea_type == "Constable")),
+           "<br>
+            <b>District Attorneys:</b> ", nrow(filter(data_ice_point_filtered(), lea_type == "District Attorney")),
+           "<br>
+            <b>Jails and Prisons:</b> ", nrow(filter(data_ice_point_filtered(), lea_type == "Jail or Prison")))
   })
   
   output$about <- renderText({
@@ -583,68 +480,49 @@ server <- function(input, output) {
            </style>
            
           <p class = title><b>CONCEPT</b></p>
-          This app visualizes ICE activity and other potential election threats across Pennsylvania, 
-          overlaid on background demographics of community racial composition and political competitiveness.
+          This app visualizes ICE 287(g) agreements with local law enforcement agencies across Pennsylvania, overlaid on background population demographics.
           <br>
           
           <br><p class = title><b>CONTENT</b></p>
-          This app contains two dashboards, one for ICE activity and election threats and the other for
-          ACLU-PA volunteer infrastructure.
+          The app contains three widgets on the Map Tool Dashboard.
           <p></p>
-          <b>1. ICE Dashboard</b>
-          <br>The map visualization shows one dot for each ballot cast but uncounted in the 2024 Pennsylvania general election. Each dot is located at the
-          mailing address at which the voter requested the ballot. For this reason, some dots appear outside of Pennsylvania. These dots represent ballots
-          requested by Pennsylvanians residing out of state around the time of the election.
+          <b>1. Map</b>
+          <br>The map visualization shows one dot for each 287(g) agreement in Pennsylvania.
           <p></p>
           <p style = 'margin-left: 15px;'>
-            <b> — <i>Law Enforcement Activity</i></b> selects the kind of law enforcement activity to visualize in points on the map.
-            Options include ICE field offices (in red), ICE detention centers (in purple), 287(g) agreements between ICE and local
-            law enforcement (in orange), and FBI offices (in blue).
-            <br><b> — <i>Background Demographic</i></b> selects the demographic to display. Users can turn off the demographic display by deselecting 'Show
-            Demographic' in the 'Map Aesthetics' menu. The app takes its racial demographic categories from the American Community Survey, adminstered
-            by the US Census Bureau.
+            <b> — <i>Partner Type</i></b> selects the kind of agencies partnered with ICE through 287(g) agreements.
+            <br><b> — <i>Partnership Model Type</i></b> selects the kind of 287(g) partnership models.
             <br><b> — <i>287(g) Dates Signed</i></b> subsets all 287(g) agreements by the date each participating local law
             enforcement agency signed its agreement with ICE. Available 287(g) agreements span dates from ____ to ____.
             <br><b> — <i>Background Demographic</i></b> selects the demographic to display for the selected background geography. 
-            Options include a geography's electoral race characterization (Standard, Competitive, or No Election), total population,
-            total non-white population, and total Hispanic or Latino population.
-            <br><b> — <i>Geography</i></b> selects which background geography to map. Options include Pennsylvania counties, 
-            municipalities, US House Districts, General Assembly Senate Districts, and General Assembly House Districts.
+            Options include a geography's total population, total non-white population, and total Hispanic or Latino population.
+            <br><b> — <i>Geography</i></b> selects which background geography to map. Options include Pennsylvania counties and municipalities.
             
             NOTE ON HAND GEOCODING FROM GOOGLE MAPS
           <br>
-          <p></p>
-            <p style = 'margin-left: 15px;'>
-            <b>MAP CLICKABILITY</b>
-            <br>Users can access quick geographically-specific demographic statistics by clicking on geographies of interest. To close a popup, click the
-            selected geography again. To close all popups, click the 'Clear All Popups' button in the control panel.
-            </p>
-          <b>2. MAPPED VOTER CONTACTS</b>
+          </p>
+          <b>2. 287(g) Selection Table</b>
           <p style = 'margin-left: 15px;'>
-            This widget produces a table with the name, mailing address, contact information, and county of registration of each voter in the current selection
-            of ballots. Users can search for specific names and addresses in the search bar at the widget's upper right-hand corner.
+            This widget produces a table with the partner agency, partnership model type, and other background information for each 287(g) agreement currently selected.
+            Users can download this table as a .CSV file with the button at the widget's upper left-hand corner. Users can search for specific counties, municipalities,
+            or other identifying information with the search bar at the widget's upper right-hand corner.
           <br>
           </p>
-          <b>3. COUNTY-LEVEL READOUT</b>
+          <b>3. Background Demographics Table</b>
           <p style = 'margin-left: 15px;'>
-            This widget produces a summary table with the county-level totals of ballots in the current selection.
+            This widget produces a table with the available background demographics for all geographies of the type currently selected.
           <br>
-          </p>
-          <b>4. STATEWIDE READOUT</b>
-          <p style = 'margin-left: 15px; margin-bottom: 0;'>
-            This widget produces several statewide summary statistics of ballots in the current selection, including the raw number of ballots in the current selection
-            and the percentage of selected ballots in the total set of uncounted mail ballots (excluding those marked 'PEND - NOT YET RETURNED' and 'CANC - LABEL
-            CANCELLED'). The widget also breaks down the total set of uncounted mail ballots into three broad categories: all those canceled ('CANC - '), pending
-            ('PEND - '), and other ('NO SURE CODE - ').
           </p>
           
           <br><p class = title><b>ATTRIBUTION</b></p>
           This product uses the Census Bureau Data API but is not endorsed or certified by the Census Bureau.
-          <br>ICE Field Offices, Sub-Offices, Detention Centers: 'government data published by ICE, collated by the Deportation Data Project, and analyzed by [your organization].'
+          PADOT DISCLAIMER
           <br>
           
           <br><p class = title><b>AUTHOR</b></p>
-          Jack Starobin, Voting Rights Litigation Associate, ACLU-PA 2026
+          Jack Starobin
+          <br>Voting Rights Litigation Associate
+          <br>ACLU-PA, 2026
           <br>
           <br>")
   })
