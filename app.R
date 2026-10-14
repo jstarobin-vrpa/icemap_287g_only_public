@@ -337,7 +337,7 @@ server <- function(input, output) {
                                               closeOnClick = FALSE),
                   group = "geoshapes",
                   options = pathOptions(pane = "polygons")) %>%
-      { if (input$geography != "None" & input$demographic != "None") 
+      { if (input$geography == "Counties" & input$demographic != "None") 
         addLegend(map = .,
                   data = data_polygons_filtered(),
                   position = "bottomright",
@@ -377,6 +377,8 @@ server <- function(input, output) {
                 "lea_color",
                 "signed_formatted",
                 "geometry")) %>%
+      arrange(county,
+              lea_type) %>%
       rename(any_of(c("Partnership Model" = "type",          ###### COMBINE AGENCY WITH UNIT PARTNER TYPE
                       "County" = "county",
                       "Partner Type" = "lea_type",
@@ -426,6 +428,7 @@ server <- function(input, output) {
                 estimate_B01001H_001,
                 starts_with("moe_"),             ##### REVISIT
                 county)) %>%
+      arrange(name) %>%
       rename(Geography = name) %>%
       st_drop_geometry()
   })
