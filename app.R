@@ -298,12 +298,13 @@ server <- function(input, output) {
                   data = data_ice_point_filtered(),
                   position = "bottomright",
                   title = "Partner Type",
-                  pal = colorFactor(palette = unique(data_ice_point_filtered()$lea_color),     #### FIX ORDER OF LEGEND OPTIONS
+                  pal = colorFactor(palette = unique(data_ice_point_filtered()$lea_color),
                                     domain = data_ice_point_filtered()$lea_type),
                   values = ~ lea_type,
                   layerId = "icelegend") }
   }) %>%
-    bindEvent(data_ice_point_filtered(), input$popup_clear)  ## debug first time clicking clear all popups, then integrate other data
+    bindEvent(data_ice_point_filtered(), 
+              input$popup_clear)  ## debug first time clicking clear all popups, then integrate other data
   
   # generate background geography
   observe({
